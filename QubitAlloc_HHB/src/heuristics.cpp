@@ -1,35 +1,55 @@
 #include "../include/heuristics.hpp"
 
 
-vector<int> RowwiseSum (const vector<vector<int>>& F, const int m)
+vector<int> RowwiseSum (const vector<vector<int>>& M, const int m)
 {
-    vector<int> sF(m, 0);
+    vector<int> sM(m, 0);
 
     int i, j;
 
     for (i = 0; i < m; ++i)
         for (j = 0; j < m; ++j)
-            sF[i] += F[i][j];
+            sM[i] += M[i][j];
 
-    return sF;
+    return sM;
 }
 
 
+vector<int> RowwiseNumZeros (const vector<vector<int>>& D, const int m)
+{
+    vector<int> nzD(m, 0);
+
+    int i, j;
+
+    for (i = 0; i < m; ++i)
+    {
+        for (j = 0; j < m; ++j)
+        {
+            if (D[i][j] == 0)
+                nzD[i] ++;
+        }
+    }
+
+    return nzD;
+}
+
+
+/* rank logical qubits (facilities) based on their interaction count */
 vector<int> Prioritization (const vector<vector<int>>& F, int n, int m)
 {
     vector<int> priority;
-    priority.reserve(m);
+    priority.reserve(n);
 
-    vector<int> sF = RowwiseSum(F, m);
+    vector<int> sF = RowwiseSum(F, n);
 
     int i, j, min_inter, min_inter_index;
 
-    for (i = 0; i < m; ++i)
+    for (i = 0; i < n; ++i)
     {
         min_inter = sF[0];
         min_inter_index = 0;
 
-        for (j = 1; j < m; ++j)
+        for (j = 1; j < n; ++j)
         {
             if (sF[j] < min_inter)
             {
@@ -39,21 +59,94 @@ vector<int> Prioritization (const vector<vector<int>>& F, int n, int m)
         }
 
         priority.insert(priority.begin(), min_inter_index);
-        //priority.push_back(min_inter_index)
 
         sF[min_inter_index] = INF;
 
-        for (j = 0; j < m; ++j)
+        for (j = 0; j < n; ++j)
         {
             if (sF[j] != INF)
                 sF[j] -= F[j][min_inter_index];
         }
     }
 
-    //std::reverse(priority);
-
     for (i = 0; i < n; ++i)
         assert(priority[i] < n && "Error: Logical prioritization failure.");
+
+    return priority;
+}
+
+vector<int> Prioritization_loc_basic (int m)
+{
+    vector<int> priority(m, 0);
+    for (int i = 0; i < m-1; ++i)
+        priority[i] = m - 1 - i;
+
+    return priority;
+}
+
+/* rank physical qubits (locations) based on their overall distances */
+vector<int> Prioritization_loc_dist (const vector<vector<int>>& D, int m)
+{
+    vector<int> priority;
+    priority.reserve(m);
+
+    vector<int> sD = RowwiseSum(D, m);
+
+    int i, j, min_dist, min_dist_index;
+
+    for (i = 0; i < m; ++i)
+    {
+        min_dist = sD[0];
+        min_dist_index = 0;
+
+        for (j = 1; j < m; ++j)
+        {
+            if (sD[j] < min_dist)
+            {
+                min_dist = sD[j];
+                min_dist_index = j;
+            }
+        }
+
+        priority.insert(priority.begin(), min_dist_index);
+        //priority.push_back(min_dist_index);
+
+        sD[min_dist_index] = INF;
+    }
+
+    return priority;
+}
+
+
+/* rank physical qubits (locations) based on their connectivity degree */
+vector<int> Prioritization_loc_connec (const vector<vector<int>>& D, int m)
+{
+    vector<int> priority;
+    priority.reserve(m);
+
+    vector<int> nzD = RowwiseNumZeros(D, m);
+
+    int i, j, min_connec, min_connec_index;
+
+    for (i = 0; i < m; ++i)
+    {
+        min_connec = nzD[0];
+        min_connec_index = 0;
+
+        for (j = 1; j < m; ++j)
+        {
+            if (nzD[j] < min_connec)
+            {
+                min_connec = nzD[j];
+                min_connec_index = j;
+            }
+        }
+
+        //priority.insert(priority.begin(), min_connec_index);
+        priority.push_back(min_connec_index);
+
+        nzD[min_connec_index] = INF;
+    }
 
     return priority;
 }
@@ -114,6 +207,9 @@ int GreedyAllocation (const vector<vector<int>>& D, const vector<vector<int>>& F
             route_cost = route_cost_temp;
         }
     }
+
+    //std::cout << alloc << std::endl;
+    //std::cout << ObjectiveFunction(alloc, D, F, n) << std::endl;
 
     return route_cost;
 }
