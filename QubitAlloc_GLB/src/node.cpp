@@ -136,6 +136,7 @@ vector<int> Node::Assemble_LAP_v0 (const vector<vector<int>>& D, const vector<ve
 
 // optimized
 // complexity = O(u^2 r), if n ~ m, complexity = O(M^3) with M = m - <depth of the node>
+/*
 vector<int> Node::Assemble_LAP (const vector<vector<int>>& D, const vector<vector<int>>& F, int n, int m)
 {
     vector<int> partial_mapping = this->mapping;
@@ -232,6 +233,121 @@ vector<int> Node::Assemble_LAP (const vector<vector<int>>& D, const vector<vecto
                 int l = partial_mapping[j];
 
                 cost += F[i][j] * D[k][l];
+            }
+
+            L[i_idx*r + k_idx] = cost;
+        }
+    }
+
+    return L;
+}*/
+
+
+vector<longint> Node::assemble_LAP (const vector<vector<int>>& F, const vector<vector<int>>& D, int n, int m)
+{
+    vector<int> partial_mapping = this->mapping;
+    vector<bool> av = this->available;
+
+    //----- Identify assigned and unassigned facilities/locations -----
+    vector<int> assigned_fac, unassigned_fac;
+    vector<int> assigned_loc, unassigned_loc;
+
+    for (int i = 0; i < n; ++i)
+    {
+        if (partial_mapping[i] != -1)
+        {
+            assigned_fac.push_back(i);
+            assigned_loc.push_back(partial_mapping[i]);
+        }
+        else
+            unassigned_fac.push_back(i);
+    }
+    for (int k = 0; k < m; ++k)
+    {
+        if (av[k])
+            unassigned_loc.push_back(k);
+    }
+
+    //----- Dimensions of the reduced problem -----
+    int u = (int) unassigned_fac.size();
+    int r = (int) unassigned_loc.size();
+
+    vector<long long> L(u * r, 0);
+
+    //----- Precompute sorted distances from each location k to other free locations -----
+    vector<vector<int>> sortedDidx(r);
+
+    for (int k_idx = 0; k_idx < r; ++k_idx)
+    {
+        int k = unassigned_loc[k_idx];
+
+        // create temporary vector of {dist, l_idx} pairs
+        vector<pair<int,int>> tmp;
+        tmp.reserve(r - 1);
+
+        for (int l_idx = 0; l_idx < r; ++l_idx)
+        {
+            if (l_idx == k_idx)
+                continue;
+
+            int l = unassigned_loc[l_idx];
+            tmp.push_back({D[k][l], l_idx});
+        }
+
+        // sort by distance (ascending)
+        sort(tmp.begin(), tmp.end(), [](auto &a, auto &b){ return a.first < b.first; });
+
+        // only store the distances
+        sortedDidx[k_idx].resize(tmp.size());
+
+        for (int t = 0; t < (int) tmp.size(); ++t)
+        {
+            sortedDidx[k_idx][t] = tmp[t].first;
+        }
+    }
+
+    //----- Loop over unassigned facilities -----
+    for (int i_idx = 0; i_idx < u; ++i_idx)
+    {
+        int i = unassigned_fac[i_idx];
+
+        // extract flows from i to other unassigned facilities
+        vector<int> flows;
+        flows.reserve(u - 1);
+        for (int j_idx = 0; j_idx < u; ++j_idx)
+        {
+            int j = unassigned_fac[j_idx];
+
+            if (i == j)
+                continue;
+
+            flows.push_back(F[i][j]);
+        }
+
+        // sort extracted flows (descending)
+        sort(flows.begin(), flows.end(), greater<int>());
+
+        // compute L[i_idx, k_idx] for each location k
+        for (int k_idx = 0; k_idx < r; ++k_idx)
+        {
+            int k = unassigned_loc[k_idx];
+            long long cost = 0;
+
+            // unassigned–unassigned part: GLB pairing
+            int pairs = min((int) flows.size(), (int) sortedDidx[k_idx].size());
+            for (int t = 0; t < pairs; ++t)
+            {
+                cost += (long long) flows[t] * sortedDidx[k_idx][t];
+            }
+
+            // assigned–unassigned part (both directions)
+            for (int a_idx = 0; a_idx < (int) assigned_fac.size(); ++a_idx)
+            {
+                int j = assigned_fac[a_idx];
+                int l = partial_mapping[j];
+
+                cost += (long long) F[i][j] * D[k][l];
+                cost += (long long) F[j][i] * D[l][k];
             }
 
             L[i_idx*r + k_idx] = cost;
